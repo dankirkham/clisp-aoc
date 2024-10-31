@@ -1,0 +1,20 @@
+{
+  "name": "common-lisp-advent-of-code",
+  "image": "mcr.microsoft.com/vscode/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {
+        "version": "1.3.2"
+    },
+    "ghcr.io/duduribeiro/devcontainer-features/neovim:1": {
+        "version": "1.0.1"
+    },
+    "ghcr.io/duduribeiro/devcontainer-features/tmux:1": {
+        "version": "1.0.0"
+    },
+    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+        "packages": "sbcl"
+    }
+  },
+  "postCreateCommand": "bash scripts/install-dependencies.sh"
+}
+
