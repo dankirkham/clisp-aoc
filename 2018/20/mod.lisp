@@ -1,0 +1,136 @@
+(defun rev-dir (dir)
+  (cond
+    ((eq dir #\N) #\S)
+    ((eq dir #\E) #\W)
+    ((eq dir #\S) #\N)
+    ((eq dir #\W) #\E)
+    ))
+
+(defstruct c-room n e s w d)
+
+;; Row-major order
+(defparameter *grid* (list (cons (cons 0 0) (make-c-room))))
+
+(defun get-room (row col)
+  (let ((r (assoc (cons row col) *grid* :test 'equal)))
+    (if r
+      (cdr r)
+      (let ((new-r (make-c-room)))
+        (push (cons (cons row col) new-r) *grid*)
+        new-r))))
+
+(defun str-chars (s)
+  (loop for i to (- (length s) 1)
+  collect (char s i)))
+
+(defun visit (row col from-dir from-room)
+  (let ((r (get-room row col)))
+    (cond
+      ((eq from-dir #\N) (progn (setf (c-room-s r) from-room) (setf (c-room-n from-room) r)))
+      ((eq from-dir #\E) (progn (setf (c-room-w r) from-room) (setf (c-room-e from-room) r)))
+      ((eq from-dir #\S) (progn (setf (c-room-n r) from-room) (setf (c-room-s from-room) r)))
+      ((eq from-dir #\W) (progn (setf (c-room-e r) from-room) (setf (c-room-w from-room) r))))
+    r))
+
+(defun assert-char (chars c)
+  (assert (eq (car chars) c))
+  (cdr chars))
+
+(defun regex-inner (chars start-row start-col)
+  (let (
+        (r (get-room start-row start-col))
+        (row start-row)
+        (col start-col))
+    (loop do
+      (cond
+        ((eq (car chars) #\N)
+         (setf row (- row 1))
+         (setf r (visit row col (rev-dir #\N) r))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\E)
+         (setf col (+ col 1))
+         (setf r (visit row col (rev-dir #\E) r))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\S)
+         (setf row (+ row 1))
+         (setf r (visit row col (rev-dir #\S) r))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\W)
+         (setf col (- col 1))
+         (setf r (visit row col (rev-dir #\W) r))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\()
+         (setf chars (regex-inner (cdr chars) row col)))
+        ((eq (car chars) #\|)
+         (setf row start-row)
+         (setf col start-col)
+         (setf r (get-room start-row start-col))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\))
+          (return-from regex-inner (cdr chars))
+        )))))
+
+(defun regex-outer (chars row col)
+  (let ((r (get-room row col)))
+    (loop do
+      (cond
+        ((eq (car chars) #\N)
+         (setf row (- row 1))
+         (setf r (visit row col (rev-dir #\N) r))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\E)
+         (setf col (+ col 1))
+         (setf r (visit row col (rev-dir #\E) r))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\S)
+         (setf row (+ row 1))
+         (setf r (visit row col (rev-dir #\S) r))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\W)
+         (setf col (- col 1))
+         (setf r (visit row col (rev-dir #\W) r))
+         (setf chars (cdr chars)))
+        ((eq (car chars) #\()
+         (setf chars (regex-inner (cdr chars) row col)))
+        (t (return-from regex-outer chars))
+        ))))
+
+(defun regex (chars)
+  (setf chars (assert-char chars #\^))
+  (setf chars (regex-outer chars 0 0))
+  (setf chars (assert-char chars #\$)))
+
+(defun traverse (r d)
+  (when r (let ((old_d (c-room-d r)))
+    (setf (c-room-d r)
+          (if (not old_d) d (if (> old_d d) d (return-from traverse))))
+    (max
+      (or (traverse (c-room-n r) (+ 1 d)) 0)
+      (or (traverse (c-room-e r) (+ 1 d)) 0)
+      (or (traverse (c-room-s r) (+ 1 d)) 0)
+      (or (traverse (c-room-w r) (+ 1 d)) 0)
+      (or (c-room-d r) 0)))))
+
+(defun test-case (rx d)
+  (setq *grid* (list (cons (cons 0 0) (make-c-room))))
+  (regex (str-chars rx))
+  (assert (eq (traverse (get-room 0 0) 0) d)))
+
+(test-case "^WNE$" 3)
+(test-case "^ENWWW(NEEE|SSE(EE|N))$" 10)
+(test-case "^ENNWSWW(NEWS|)SSSEEN(WNSE|)EE(SWEN|)NNN$" 18)
+
+(defun get-file (filename)
+  (with-open-file (stream filename)
+    (loop for line = (read-line stream nil)
+          while line
+          collect line)))
+
+(setq *grid* (list (cons (cons 0 0) (make-c-room))))
+(regex (str-chars (car (get-file "input.txt"))))
+(print (traverse (get-room 0 0) 0))
+
+(defun same-key (a b) (equal (car a) (car b)))
+(remove-duplicates *grid* :test #'same-key)
+(defun pred-distance (val) (c-room-d (cdr val)))
+(print (position-if (lambda (val) (< val 1000)) (sort (mapcar #'pred-distance *grid*) '>)))
